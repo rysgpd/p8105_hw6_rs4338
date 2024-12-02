@@ -12,6 +12,9 @@ library(kableExtra)
 library(leaflet)
 library(p8105.datasets)
 library(broom)
+library(tidyverse)
+library(modelr)
+library(mgcv)
 set.seed(1)
 
 knitr::opts_chunk$set(
@@ -255,10 +258,74 @@ birth_df = read_csv("data/birthweight.csv") %>%
 
 Using existing literature, I took a knowledge-based approach to developing my model. 
 
-- gender of newborn, race of mother, age of mother,
+- gender of newborn, race of mother, age of mother, previous births 
+- maternal height, pre-pregnancy weight, weight gain during pregnancy, parental ethnicity, smoking
+
+* Citations:
+  * Dola SS, Valderrama CE. Exploring parental factors influencing low birth weight on the 2022 CDC natality dataset. BMC Med Inform Decis Mak. 2024;24(1):367. Published 2024 Nov 30. doi:10.1186/s12911-024-02783-x
+  * Moreira AIM, Sousa PRM, Sarno F. Low birth weight and its associated factors. Einstein (Sao Paulo). 2018;16(4):eAO4251. Published 2018 Nov 8. doi:10.31744/einstein_journal/2018AO4251
+  * Falcão, IR, Ribeiro-Silva, R, de Almeida, MF, et al. Factors associated with low birth weight at term: a population-based linkage study of the 100 million Brazilian cohort. BMC Pregnancy Childbirth 20, 536 (2020). https://doi.org/10.1186/s12884-020-03226-x
 
 
-```{r}
+```{r prob3_mymodel}
+
+prob3_lm_fit = lm(bwt ~ babysex + mrace + momage + parity + mheight + ppwt + wtgain + smoken + gaweeks, data = birth_df)
+
+prob3_lm_fit %>%
+  broom::tidy()
+
+birth_df %>% 
+  add_residuals(prob3_lm_fit) %>% 
+  add_predictions(prob3_lm_fit) %>% 
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point() + 
+  labs(
+    title = "Predicted vs Residuals for My Linear Regression Model",
+    x = "Predicted",
+    y = "Residuals"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
 
 ```
 
+* This plot seems to be concentrated around residual 0 and predicted value of 3000, which may indicate that my model is not perfect and may be overfitting on certain variables, but it's a decent model. There are also many dots that have very large residuals (over 1000), which is not great in terms of fit. 
+
+```{r prob3_cv, warning=FALSE}
+
+# similar code from class
+cv_df = 
+  crossv_mc(birth_df, 100) %>% 
+  mutate(
+    mymodel = map(train, \(df) lm(bwt ~ babysex + mrace + momage + parity + mheight + ppwt + wtgain + smoken + gaweeks, data = df)),
+    model1 = map(train, \(df) lm(bwt ~ blength + gaweeks, data = df)),
+    model2 = map(train, \(df) lm(bwt ~ bhead * blength * babysex, data = df))) %>% 
+  mutate(
+    rmse_mymodel = map2_dbl(mymodel, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_model1 = map2_dbl(model1, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_model2 = map2_dbl(model2, test, \(mod, df) rmse(model = mod, data = df)))
+
+cv_df %>% 
+  select(
+    starts_with("rmse")
+  ) %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = "model_type",
+    values_to = "rmse_values",
+    names_prefix = "rmse_"
+  ) %>% 
+  mutate(model_type = fct_inorder(model_type)) |> 
+  ggplot(aes(x = model_type, y = rmse_values)) + geom_violin() +
+  labs(
+    title = "RSMEs Across Models",
+    x = "Model Type",
+    y = "RMSE Values"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+* As expected, my model was not good at all, which makes sense because it would be too simple to include many variables and assume a perfect linear regression without any interactions. Model 1 is the very simple one (main effects only) which made it a little better (smaller RMSE values), and model 2 was the interactions one which did the best. 
