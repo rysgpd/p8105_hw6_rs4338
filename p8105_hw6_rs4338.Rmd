@@ -72,6 +72,7 @@ prob1_function1 = function(input_df) {
   )
 }
 
+# r^2 function and results
 prob1_results1 = 
   weather_df %>% 
   modelr::bootstrap(5000) %>% 
@@ -96,9 +97,11 @@ prob1_results1 %>%
 
 
 * For r^2, the 95% confidence interval is `r prob1_results1 %>% pull(r.squared) %>% quantile(0.025)` to `r prob1_results1 %>% pull(r.squared) %>% quantile(0.975)`. 
-* The distribution is pretty symmetrical with the r^2 values being on the higher side.
+* The distribution is pretty symmetrical with the r^2 values on the higher side which is a good indication of the regression model fitting the data well.
 
 ```{r prob1_pt2}
+
+# log(b0 * b1) function and results
 
 prob1_function2 = function(input_df) {
   input_df = as.data.frame(input_df)
@@ -140,7 +143,7 @@ prob1_results2%>%
 ```
 
 * For the log value, the 95% confidence interval is `r prob1_results2 %>% pull(log_value) %>% quantile(0.025)` to `r prob1_results2 %>% pull(log_value) %>% quantile(0.975)`. 
-* This one is less symmetrical. Bootstrapping can help get these estimates and distributions.
+* This one is less symmetrical, which indicates a potential skewed distribution or nonlinear relationships. Bootstrapping can help get these estimates and distributions, to make sure they aren't just outliers that makes it not symmetrical.
 
 ## Problem 2:
 
@@ -229,6 +232,10 @@ homicide_result %>%
 
 ```
 
+## Problem 3:
+
+* Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
+
 ```{r prob3_setup}
 
 birth_df = read_csv("data/birthweight.csv") %>% 
@@ -256,15 +263,12 @@ birth_df = read_csv("data/birthweight.csv") %>%
 # colSums(is.na(birth_df)) 
 ```
 
-Using existing literature, I took a knowledge-based approach to developing my model. 
-
-- gender of newborn, race of mother, age of mother, previous births 
-- maternal height, pre-pregnancy weight, weight gain during pregnancy, parental ethnicity, smoking
-
-* Citations:
-  * Dola SS, Valderrama CE. Exploring parental factors influencing low birth weight on the 2022 CDC natality dataset. BMC Med Inform Decis Mak. 2024;24(1):367. Published 2024 Nov 30. doi:10.1186/s12911-024-02783-x
-  * Moreira AIM, Sousa PRM, Sarno F. Low birth weight and its associated factors. Einstein (Sao Paulo). 2018;16(4):eAO4251. Published 2018 Nov 8. doi:10.31744/einstein_journal/2018AO4251
-  * Falcão, IR, Ribeiro-Silva, R, de Almeida, MF, et al. Factors associated with low birth weight at term: a population-based linkage study of the 100 million Brazilian cohort. BMC Pregnancy Childbirth 20, 536 (2020). https://doi.org/10.1186/s12884-020-03226-x
+* Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
+  * Using existing literature, I took a knowledge-based approach to developing my model. I propose that the regression model for birthweight is based on the following factors gender of newborn (`babysex`), race of mother (`mrace`), age of mother (`momage`), previous births (`parity`), maternal height (`mheight`), pre-pregnancy weight (`ppwt`), weight gain during pregnancy (`wtgain`), and smoking (`smoken`). I also put in `gaweeks` because that seems self explanatory to me to include in my model. I did not include any interaction factors at this point in my analysis.
+  * Citations:
+    * Dola SS, Valderrama CE. Exploring parental factors influencing low birth weight on the 2022 CDC natality dataset. BMC Med Inform Decis Mak. 2024;24(1):367. Published 2024 Nov 30. doi:10.1186/s12911-024-02783-x
+    * Moreira AIM, Sousa PRM, Sarno F. Low birth weight and its associated factors. Einstein (Sao Paulo). 2018;16(4):eAO4251. Published 2018 Nov 8. doi:10.31744/einstein_journal/2018AO4251
+    * Falcão, IR, Ribeiro-Silva, R, de Almeida, MF, et al. Factors associated with low birth weight at term: a population-based linkage study of the 100 million Brazilian cohort. BMC Pregnancy Childbirth 20, 536 (2020). https://doi.org/10.1186/s12884-020-03226-x
 
 
 ```{r prob3_mymodel}
@@ -272,7 +276,8 @@ Using existing literature, I took a knowledge-based approach to developing my mo
 prob3_lm_fit = lm(bwt ~ babysex + mrace + momage + parity + mheight + ppwt + wtgain + smoken + gaweeks, data = birth_df)
 
 prob3_lm_fit %>%
-  broom::tidy()
+  broom::tidy() %>% 
+  knitr::kable()
 
 birth_df %>% 
   add_residuals(prob3_lm_fit) %>% 
@@ -292,9 +297,19 @@ birth_df %>%
 
 * This plot seems to be concentrated around residual 0 and predicted value of 3000, which may indicate that my model is not perfect and may be overfitting on certain variables, but it's a decent model. There are also many dots that have very large residuals (over 1000), which is not great in terms of fit. 
 
+
+* Compare your model to two others:
+  * One using length at birth and gestational age as predictors (main effects only)
+  * One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+  
 ```{r prob3_cv, warning=FALSE}
 
 # similar code from class
+
+# mymodel = my proposed model from the part above
+# model1 = the one using length at birth and gestational age as predictors
+# model2 = the one using head circumference, length, sex, and all interactions (including the three-way interaction)
+
 cv_df = 
   crossv_mc(birth_df, 100) %>% 
   mutate(
@@ -328,4 +343,4 @@ cv_df %>%
   )
 ```
 
-* As expected, my model was not good at all, which makes sense because it would be too simple to include many variables and assume a perfect linear regression without any interactions. Model 1 is the very simple one (main effects only) which made it a little better (smaller RMSE values), and model 2 was the interactions one which did the best. 
+* As expected, my model was not good at all, which makes sense because it would be too simple to include many variables and assume a perfect linear regression without any interactions. Model 1 is the very simple one (main effects only) which made it a little better (smaller RMSE values), and model 2 was the interactions one which did the best. Model2 can be improved include more factors/interactions but it's the best out of the 3 at this point. 
